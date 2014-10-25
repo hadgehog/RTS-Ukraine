@@ -20,6 +20,19 @@ public class HUD : MonoBehaviour
 	private const int ICON_WIDTH = 32, ICON_HEIGHT = 32, TEXT_WIDTH = 100, TEXT_HEIGHT = 32, SPACE = 1000;
 	public Texture2D[] resources;
 	private Dictionary<ResourceType, Texture2D> resourceImages;
+	private WorldObject lastSelection;
+	private float sliderValue;
+	public Texture2D buttonHover, buttonClick;
+	private const int BUILD_IMAGE_WIDTH = 64, BUILD_IMAGE_HEIGHT = 64;
+	private int buildAreaHeight = 0;
+	private const int BUTTON_SPACING = 7;
+	private const int SCROLL_BAR_WIDTH = 22;
+	public Texture2D buildFrame, buildMask;
+	private const int BUILD_IMAGE_PADDING = 8;
+	public Texture2D smallButtonHover, smallButtonClick;
+	public Texture2D rallyPointImage;
+	public Texture2D rallyPointCursor;
+	private CursorState previousCursorState;
 	
 	// Use this for initialization
 	void Start() 
@@ -32,6 +45,7 @@ public class HUD : MonoBehaviour
 		resourceValues = new Dictionary<ResourceType, int>();
 		resourceLimits = new Dictionary<ResourceType, int>();
 		resourceImages = new Dictionary< ResourceType, Texture2D >();
+		buildAreaHeight = Screen.height - RESOURCE_BAR_HEIGHT - SELECTION_NAME_HEIGHT - 2 * BUTTON_SPACING;
 		for(int i = 0; i < resources.Length; i++) 
 		{
 	    	switch(resources[i].name) 
@@ -80,7 +94,7 @@ public class HUD : MonoBehaviour
 			}
 	        default: break;
     		}
-		}
+		}	
 	}
 	
 	// Update is called once per frame
@@ -100,10 +114,35 @@ public class HUD : MonoBehaviour
 		GUI.BeginGroup(new Rect(Screen.width-ORDERS_BAR_WIDTH, RESOURCE_BAR_HEIGHT, ORDERS_BAR_WIDTH, Screen.height-RESOURCE_BAR_HEIGHT));
 		GUI.Box(new Rect(0, 0, ORDERS_BAR_WIDTH, Screen.height-RESOURCE_BAR_HEIGHT), "");
 		string selectionName = "";
-		if(player.SelectedObject) 
+		if(player.SelectedObject)
+		{
     		selectionName = player.SelectedObject.objectName;
-		if(!selectionName.Equals("")) 
+
+			if(player.SelectedObject.IsOwnedBy(player)) 
+			{
+			    //reset slider value if the selected object has changed
+			    if(lastSelection && lastSelection != player.SelectedObject) 
+					sliderValue = 0.0f;
+			    DrawActions(player.SelectedObject.GetActions());
+			    //store the current selection
+			    lastSelection = player.SelectedObject;
+				Building selectedBuilding = lastSelection.GetComponent< Building >();
+				if(selectedBuilding) 
+				{
+				    DrawBuildQueue(selectedBuilding.getBuildQueueValues(), selectedBuilding.getBuildPercentage());
+					DrawStandardBuildingOptions(selectedBuilding);
+				}
+			}
+		}
+		
+		if(!selectionName.Equals(""))
+		{
+			int topPos = buildAreaHeight + BUTTON_SPACING + BUILD_IMAGE_HEIGHT;
     		GUI.Label(new Rect(20,20,ORDERS_BAR_WIDTH,SELECTION_NAME_HEIGHT), selectionName, st);
+		}
+		
+		
+		
 		GUI.EndGroup();	
 	}
 	
@@ -120,10 +159,6 @@ public class HUD : MonoBehaviour
 		iconLeft += TEXT_WIDTH;
 		textLeft += TEXT_WIDTH;
 		DrawResourceIcon(ResourceType.Iron, iconLeft, textLeft, topPos);
-		//iconLeft += TEXT_WIDTH;
-		//textLeft += TEXT_WIDTH;
-		//iconLeft += SPACE;
-		//textLeft += SPACE;
 		iconLeft = Screen.width-455;
 		textLeft = Screen.width-435;
 		DrawResourceIcon(ResourceType.Money, iconLeft, textLeft, topPos);
@@ -208,11 +243,16 @@ public class HUD : MonoBehaviour
 	        topPos -= activeCursor.height / 2;
 	        leftPos -= activeCursor.width / 2;
     	}
+		else
+			if(activeCursorState == CursorState.RallyPoint)
+				topPos -= activeCursor.height;
     	return new Rect(leftPos, topPos, activeCursor.width, activeCursor.height);
 	}
 	
 	public void SetCursorState(CursorState newState)
 	{
+		if(activeCursorState != newState) 
+			previousCursorState = activeCursorState;
 		activeCursorState = newState;
 		switch(newState) 
 		{
@@ -243,6 +283,9 @@ public class HUD : MonoBehaviour
     	case CursorState.PanDown:
         	activeCursor = downCursor;
         	break;
+		case CursorState.RallyPoint:
+		    activeCursor = rallyPointCursor;
+		    break;
     	default: break;
     	}
 	}
@@ -252,5 +295,124 @@ public class HUD : MonoBehaviour
     	this.resourceValues = resourceValues;
     	this.resourceLimits = resourceLimits;
 	}
+	
+	private void DrawActions(string[] actions) 
+	{
+	    GUIStyle buttons = new GUIStyle();
+	    buttons.hover.background = buttonHover;
+	    buttons.active.background = buttonClick;
+	    GUI.skin.button = buttons;
+	    int numActions = actions.Length;
+	    //define the area to draw the actions inside
+	    GUI.BeginGroup(new Rect(0, 45, ORDERS_BAR_WIDTH, buildAreaHeight));
+	    //draw scroll bar for the list of actions if need be
+	    if(numActions >= MaxNumRows(buildAreaHeight)) 
+			DrawSlider(buildAreaHeight, numActions / 2.0f);
+	    //display possible actions as buttons and handle the button click for each
+	    for(int i = 0; i < numActions; i++) 
+		{
+	        int column = i % 2;
+	        int row = i / 2;
+	        Rect pos = GetButtonPos(row, column);
+	        Texture2D action = ResourceManager.GetBuildImage(actions[i]);
+	        if(action) 
+			{
+	            //create the button and handle the click of that button
+	            if(GUI.Button(pos, action)) 
+				{
+	                if(player.SelectedObject) 
+						player.SelectedObject.PerformAction(actions[i]);
+	            }
+	        }
+	    }
+	    GUI.EndGroup();
+	}
+		
+	private int MaxNumRows(int areaHeight) 
+	{
+	    return areaHeight / BUILD_IMAGE_HEIGHT;
+	}
+	 
+	private Rect GetButtonPos(int row, int column) 
+	{
+	    int left = BUILD_IMAGE_PADDING;
+	    float top = row * BUILD_IMAGE_HEIGHT - sliderValue * BUILD_IMAGE_HEIGHT;
+	    return new Rect(left, top, BUILD_IMAGE_WIDTH, BUILD_IMAGE_HEIGHT);
+	}
+	 
+	private void DrawSlider(int groupHeight, float numRows) 
+	{
+	    //slider goes from 0 to the number of rows that do not fit on screen
+	    sliderValue = GUI.VerticalSlider(GetScrollPos(groupHeight), sliderValue, 0.0f, numRows - MaxNumRows(groupHeight));
+	}
+	
+	private Rect GetScrollPos(int groupHeight) 
+	{
+	    return new Rect(BUTTON_SPACING, BUTTON_SPACING, SCROLL_BAR_WIDTH, groupHeight - 2 * BUTTON_SPACING);
+	}
+	
+	private void DrawBuildQueue(string[] buildQueue, float buildPercentage) 
+	{
+	    for(int i = 0; i < buildQueue.Length; i++) 
+		{
+	        float topPos = BUILD_IMAGE_HEIGHT + 50 + i * BUILD_IMAGE_HEIGHT;
+	        Rect buildPos = new Rect(BUILD_IMAGE_PADDING, topPos+10*i, BUILD_IMAGE_WIDTH, BUILD_IMAGE_HEIGHT);
+	        GUI.DrawTexture(buildPos, ResourceManager.GetBuildImage(buildQueue[i]));
+	        GUI.DrawTexture(buildPos, buildFrame);
+	        float width = BUILD_IMAGE_WIDTH;
+	        float height = BUILD_IMAGE_HEIGHT;
+	        if(i==0) 
+			{
+	            //shrink the build mask on the item currently being built to give an idea of progress
+	            topPos += height * buildPercentage;
+	            height *= (1 - buildPercentage);
+	        }		
+	        GUI.DrawTexture(new Rect(BUILD_IMAGE_PADDING, topPos+10*i, width, height), buildMask);
+	    }
+	}
+	
+	private void DrawStandardBuildingOptions(Building building) 
+	{
+	    GUIStyle buttons = new GUIStyle();
+	    buttons.hover.background = smallButtonHover;
+	    buttons.active.background = smallButtonClick;
+	    GUI.skin.button = buttons;
+	    int leftPos = BUILD_IMAGE_WIDTH + SCROLL_BAR_WIDTH + BUTTON_SPACING;
+	    int topPos = buildAreaHeight - BUILD_IMAGE_HEIGHT / 2;
+	    int width = BUILD_IMAGE_WIDTH / 2;
+	    int height = BUILD_IMAGE_HEIGHT / 2;
+		if(GUI.Button(new Rect(leftPos, topPos, width, height), building.sellImage)) 
+		{
+    		building.Sell();
+		}
+		
+		if(lastSelection.isRallyPoint)
+		    if(building.hasSpawnPoint()) 
+			{
+				leftPos -= 2*width + BUTTON_SPACING;
+		        if(GUI.Button(new Rect(leftPos, topPos, width, height), building.rallyPointImage))
+				{
+		            if(activeCursorState != CursorState.RallyPoint && previousCursorState != CursorState.RallyPoint)
+						SetCursorState(CursorState.RallyPoint);
+		            else 
+					{
+		                SetCursorState(CursorState.PanRight);
+		                SetCursorState(CursorState.Select);
+		            }
+		        }
+		    }
+	}
+	
+	public CursorState GetPreviousCursorState() 
+	{
+	    return previousCursorState;
+	}
+	
+	public CursorState GetCursorState() 
+	{
+	    return activeCursorState;
+	}
+	
+	
 	
 }

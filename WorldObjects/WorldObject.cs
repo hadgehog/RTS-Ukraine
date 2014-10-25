@@ -6,7 +6,8 @@ public class WorldObject : MonoBehaviour
 {
 	
 	public string objectName;
-	public int cost, sellValue, hitPoints, maxHitPoints;
+	public int cost, sellValueM, sellValueR, sellValueW, hitPoints, maxHitPoints;
+	public bool isRallyPoint=false;
 	public Texture2D buildImage;
 	protected Player player;
 	protected string[] actions = {};
@@ -36,7 +37,7 @@ public class WorldObject : MonoBehaviour
 			DrawSelection();
 	}
 	
-	public void SetSelection(bool selected, Rect playingArea)
+	public virtual void SetSelection(bool selected, Rect playingArea)
 	{
 		currentlySelected = selected;
 		if(selected) 
@@ -103,6 +104,18 @@ public class WorldObject : MonoBehaviour
 		if(player && player.human && currentlySelected)
 			if(hoverObject.name!="Ground")
 				player.hud.SetCursorState(CursorState.Select);
+	}
+	
+	public bool IsOwnedBy(Player owner) 
+	{
+	    if(player && player.Equals(owner)) 
+		{
+	        return true;
+	    } 
+		else 
+		{
+	        return false;
+	    }
 	}
 
 }

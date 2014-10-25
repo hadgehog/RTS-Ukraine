@@ -15,7 +15,7 @@ public class GameObjectList : MonoBehaviour
 	    if(!created) 
 		{
 	        DontDestroyOnLoad(transform.gameObject);
-	        ResourceManager.SetGameObjectList(this);	//vremenno zakomencheno
+	        ResourceManager.SetGameObjectList(this);
 	        created = true;
 	    } 
 		else 
@@ -39,7 +39,8 @@ public class GameObjectList : MonoBehaviour
     	for(int i = 0; i < buildings.Length; i++) 
 		{
 	        Building building = buildings[i].GetComponent< Building >();
-	        if(building && building.name == name) return buildings[i];
+	        if(building && building.name == name) 
+				return buildings[i];
 	    }
 	    return null;
 	}

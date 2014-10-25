@@ -6,12 +6,12 @@ namespace RTS
 {
 	public static class ResourceManager
 	{
-		public static float ScrollSpeed {get{return 30;}}
+		public static float ScrollSpeed {get{return 40;}}
 		public static float RotateSpeed {get{return 100;}}
 		public static int ScrollWidth {get{return 15;}}
 		public static float MinCameraHeight {get{return 5;}}
-		public static float MaxCameraHeight {get{return 50;}}
-		public static float RotateAmount {get{return 20;}}
+		public static float MaxCameraHeight {get{return 70;}}
+		public static float RotateAmount {get{return 30;}}
 		private static Vector3 invalidPosition = new Vector3(-99999, -99999, -99999);
 		public static Vector3 InvalidPosition { get { return invalidPosition; } }
 		private static GUISkin selectBoxSkin;
